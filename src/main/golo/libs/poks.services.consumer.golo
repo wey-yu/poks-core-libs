@@ -4,26 +4,26 @@ import http
 import JSON
 import gololang.Async
 
-function operations = |operation_name| -> promise(): initializeWithinThread(|resolve, reject| {
+function operations = |service_name| -> promise(): initializeWithinThread(|resolve, reject| {
   try {
     let res = request(
       "GET",
-      System.getenv(): get("SERVICES_URL")+"/"+operation_name,
+      System.getenv(): get("SERVICES_URL")+"/"+service_name,
       null,
       [http.header("Content-Type", "application/json")]
     )
     let do = JSON.toDynamicObjectTreeFromString(res: data()) # list of operations
 
-    let constructUrl = |urlBase, args| {
+    let constructUrl = |urlBase, method, args...| {
       if(args is null) {
         return urlBase
       }
-      if(args oftype gololang.Tuple.class) {
-        return urlBase + "/" + args: join("/")
+
+      if(method: equals("GET")) {
+        return urlBase + "/" + Tuple.fromArray(args): join("/")
       } else {
         return urlBase
       }
-
     }
 
     let constructData = |method, args| {
@@ -39,13 +39,13 @@ function operations = |operation_name| -> promise(): initializeWithinThread(|res
     do: operations(): each(|operation| {
       # println("🤖 "+operation: name())
       # TODO test method if GET or POST
-      operation: define("run", |this, args| {
+      operation: define(operation: name(), |this, args| {
         return promise(): initializeWithinThread(|resolve, reject| {
           try {
 
             let res = request(
               this: method(), # GET or POST
-              constructUrl(this: url(), args),
+              constructUrl(this: url(), this: method(), args),
               constructData(this: method(), args),
               [http.header("Content-Type", "application/json")]
             )
