@@ -4,6 +4,26 @@ import http
 import JSON
 import gololang.Async
 
+function services =  -> promise(): initializeWithinThread(|resolve, reject| {
+  try {
+    let res = request(
+      "GET",
+      System.getenv(): get("SERVICES_URL"),
+      null,
+      [http.header("Content-Type", "application/json")]
+    )
+    let strData = res: data()
+    let data = JSON.parse(strData)
+    #println("🍄  " + strData: getClass(): getSimpleName())
+    #println("🍄  " + data: getClass(): getSimpleName())
+    let servicesList = list[]
+    data: each(|item| { servicesList: add(item) })
+    resolve(servicesList)
+  } catch (error) {
+    reject(error)
+  }
+})
+
 function operations = |service_name| -> promise(): initializeWithinThread(|resolve, reject| {
   try {
     let res = request(
@@ -14,51 +34,56 @@ function operations = |service_name| -> promise(): initializeWithinThread(|resol
     )
     let do = JSON.toDynamicObjectTreeFromString(res: data()) # list of operations
 
-    let constructUrl = |urlBase, method, args...| {
+    let constructUrl = |urlBase, args...| {
       if(args is null) {
         return urlBase
-      }
-
-      if(method: equals("GET")) {
-        return urlBase + "/" + Tuple.fromArray(args): join("/")
       } else {
-        return urlBase
+        return urlBase + "/" + Tuple.fromArray(args): join("/")
       }
     }
-
-    let constructData = |method, args| {
-      if(method: equals("GET")) {
-        return null
-      }
-      if(method: equals("POST")) {
-        return JSON.stringify(args)
-      }
-    }
-
 
     do: operations(): each(|operation| {
-      # println("🤖 "+operation: name())
-      # TODO test method if GET or POST
-      operation: define(operation: name(), |this, args| {
-        return promise(): initializeWithinThread(|resolve, reject| {
-          try {
 
-            let res = request(
-              this: method(), # GET or POST
-              constructUrl(this: url(), this: method(), args),
-              constructData(this: method(), args),
-              [http.header("Content-Type", "application/json")]
-            )
-            # struct response{code=200, message=OK, data={"a":7.0,"b":10.0,"r":70.0}}
-            resolve(JSON.toDynamicObjectTreeFromString(res: data()))
-          } catch (error) {
-            reject(error)
-          }
-        }) # end return promise
-      }) # end of define
-    })
+      if(operation: method(): equals("GET")) {
+        do: define(operation: name(), |this, args...| {
+          return promise(): initializeWithinThread(|resolve, reject| {
+            try {
+              let res = request(
+                "GET",
+                constructUrl(operation: url(), args),
+                null,
+                [http.header("Content-Type", "application/json")]
+              )
+              resolve(JSON.toDynamicObjectTreeFromString(res: data()))
+            } catch (error) {
+              reject(error)
+            }
+          }) # end return promise
+        })# end of define
+      }# end if
 
-    resolve(do: operations())
+      if(operation: method(): equals("POST")) {
+        do: define(operation: name(), |this, args| {
+          println(JSON.stringify(args))
+          return promise(): initializeWithinThread(|resolve, reject| {
+            try {
+              let res = request(
+                "POST",
+                operation: url(),
+                JSON.stringify(args),
+                [http.header("Content-Type", "application/json")]
+              )
+              resolve(JSON.toDynamicObjectTreeFromString(res: data()))
+            } catch (error) {
+              reject(error)
+            }
+          }) # end return promise
+        })# end of define
+      }# end if
+
+    })# end each
+
+    resolve(do)
   } catch(error) {
     reject(error)
   }
