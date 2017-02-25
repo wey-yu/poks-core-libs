@@ -18,11 +18,12 @@ function operations = |operation_name| -> promise(): initializeWithinThread(|res
       if(args is null) {
         return urlBase
       }
-      if(args oftype gololang.Tuple) {
-        return urlBase+"/"+args: join("/")
+      if(args oftype gololang.Tuple.class) {
+        return urlBase + "/" + args: join("/")
       } else {
         return urlBase
       }
+
     }
 
     let constructData = |method, args| {
@@ -44,7 +45,7 @@ function operations = |operation_name| -> promise(): initializeWithinThread(|res
 
             let res = request(
               this: method(), # GET or POST
-              constructUrl(this: url()),
+              constructUrl(this: url(), args),
               constructData(this: method(), args),
               [http.header("Content-Type", "application/json")]
             )
